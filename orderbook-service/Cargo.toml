@@ -1,0 +1,70 @@
+[package]
+name = "orderbook-service"
+version = "0.1.0"
+edition = "2021"
+authors = ["Prediction Marketplace Team"]
+description = "Off-chain orderbook service for intent-based prediction marketplace"
+
+[dependencies]
+# Web framework
+tokio = { version = "1.12.0", features = ["full"] }
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "sqlite", "chrono", "uuid", "bigdecimal"] }
+async-trait = "0.1"
+
+# Environment for sqlx set via env variable
+# Set SQLX_OFFLINE=true in environment
+
+# NEAR integration - using stable lower-level crates
+near-jsonrpc-client = "0.18"  
+near-jsonrpc-primitives = "0.31"
+near-primitives = "0.31"
+near-crypto = "0.31"
+near-account-id = "1.0"
+borsh = "1.5"
+bs58 = "0.4"
+hex = "0.4"
+base64 = "0.21"
+sha2 = "0.10"
+dotenv = "0.15.0"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tracing-appender = "0.2"
+anyhow = "1.0"
+thiserror = "1.0"
+rand = "0.8"
+
+# Redis for caching
+redis = { version = "0.24", features = ["tokio-comp"] }
+
+# WebSocket for real-time updates
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+
+# Terminal UI and metrics
+ratatui = "0.26"
+crossterm = "0.27"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.15"
+
+# Channels for log forwarding to UI
+tokio-stream = "0.1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[test]]
+name = "extended_matching_tests"
+path = "tests/extended_matching_tests.rs"
