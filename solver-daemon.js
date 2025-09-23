@@ -36,11 +36,35 @@ class SolverDaemon {
         // Retry mechanism tracking
         this.intentRetryData = new Map(); // Map<intentId, {attempts, nextRetryTime, firstAttemptTime}>
         this.processingIntents = new Set(); // Track intents currently being processed
+        this.completedIntents = new Set(); // Track intents that have been completed on-chain to prevent duplicates
 
         // Point NEAR CLI to QuickNode (same as test script) to keep endpoints consistent.
         // Allow override via NEAR_RPC_URL if you want to switch quickly.
         const QUICKNODE = process.env.NEAR_RPC_URL || 'https://billowing-ancient-meadow.near-testnet.quiknode.pro/02fe7cae1f78374077f55e172eba1f849e8570f4/';
         process.env.NEAR_CLI_TESTNET_RPC_SERVER_URL = QUICKNODE;
+    }
+
+    // Helper method to safely complete an intent (prevents duplicates)
+    async completeIntentOnChain(intentId, executionResult) {
+        // Check if already completed
+        if (this.completedIntents.has(intentId)) {
+            console.log(`⚠️ Intent ${intentId} already completed, skipping duplicate completion call`);
+            return;
+        }
+
+        try {
+            execSync(
+                `near call ${CONFIG.SOLVER_CONTRACT} complete_intent '{"intent_id": "${intentId}", "result": ${JSON.stringify(executionResult)}}' --accountId ${CONFIG.ACCOUNT_ID}`,
+                { encoding: 'utf8' }
+            );
+
+            // Mark as completed to prevent duplicates
+            this.completedIntents.add(intentId);
+            console.log(`✅ Notified solver contract that ${intentId} is completed`);
+        } catch (error) {
+            console.log(`⚠️ Failed to notify solver contract for ${intentId}:`, error.message);
+            // Don't mark as completed if the call failed
+        }
     }
 
     async start() {
@@ -225,25 +249,18 @@ class SolverDaemon {
             this.intentRetryData.delete(intentId);
             this.failedIntents.delete(intentId);
             this.processingIntents.delete(intentId);
+            this.completedIntents.delete(intentId);
 
             // Optionally notify the solver contract of permanent failure
-            try {
-                const executionResult = {
-                    intent_id: intentId,
-                    success: false,
-                    output_amount: null,
-                    fee_amount: "0",
-                    execution_details: `Failed after ${retryData.attempts} attempts: ${retryData.lastError || 'Unknown error'}`
-                };
+            const executionResult = {
+                intent_id: intentId,
+                success: false,
+                output_amount: null,
+                fee_amount: "0",
+                execution_details: `Failed after ${retryData.attempts} attempts: ${retryData.lastError || 'Unknown error'}`
+            };
 
-                execSync(
-                    `near call ${CONFIG.SOLVER_CONTRACT} complete_intent '{"intent_id": "${intentId}", "result": ${JSON.stringify(executionResult)}}' --accountId ${CONFIG.ACCOUNT_ID}`,
-                    { encoding: 'utf8' }
-                );
-                console.log(`✅ Notified solver contract of permanent failure for ${intentId}`);
-            } catch (notifyError) {
-                console.log(`⚠️ Failed to notify solver contract of failure for ${intentId}:`, notifyError.message);
-            }
+            await this.completeIntentOnChain(intentId, executionResult);
         }
     }
 
@@ -589,26 +606,19 @@ class SolverDaemon {
                 this.pendingIntents.delete(intentId);
                 this.intentRetryData.delete(intentId);
                 this.failedIntents.delete(intentId);
+                this.processingIntents.delete(intentId);
                 console.log(`📤 Intent ${intentId} submitted to orderbook, removed from pending`);
 
                 // Notify solver contract that daemon has completed processing
-                try {
-                    const executionResult = {
-                        intent_id: intentId,
-                        success: true,
-                        output_amount: trades.length > 0 ? trades[0].amount : null,
-                        fee_amount: "0",
-                        execution_details: `Processed ${trades.length} trades`
-                    };
+                const executionResult = {
+                    intent_id: intentId,
+                    success: true,
+                    output_amount: trades.length > 0 ? trades[0].amount : null,
+                    fee_amount: "0",
+                    execution_details: `Processed ${trades.length} trades`
+                };
 
-                    execSync(
-                        `near call ${CONFIG.SOLVER_CONTRACT} complete_intent '{"intent_id": "${intentId}", "result": ${JSON.stringify(executionResult)}}' --accountId ${CONFIG.ACCOUNT_ID}`,
-                        { encoding: 'utf8' }
-                    );
-                    console.log(`✅ Notified solver contract that ${intentId} is completed`);
-                } catch (notifyError) {
-                    console.log(`⚠️ Failed to notify solver contract:`, notifyError.message);
-                }
+                await this.completeIntentOnChain(intentId, executionResult);
 
                 // Queue trades for settlement
                 this.pendingTrades.push(...trades.map(trade => ({

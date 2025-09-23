@@ -64,6 +64,21 @@ impl CollateralManager {
         // Get user's available balance for this specific market
         let available = self.get_available_market_balance(&order.user_account, &order.market_id, &order.side).await?;
 
+        info!(
+            "💰 Balance check for order {}: need {}, have {} available",
+            order.order_id,
+            if matches!(order.side, OrderSide::Buy) {
+                format!("${:.2}", required_balance as f64 / 1_000_000.0)
+            } else {
+                format!("{} tokens", required_balance)
+            },
+            if matches!(order.side, OrderSide::Buy) {
+                format!("${:.2}", available as f64 / 1_000_000.0)
+            } else {
+                format!("{} tokens", available)
+            }
+        );
+
         // Polymarket's formula: maxOrderSize = underlyingAssetBalance - Σ(orderSize - orderFillAmount)
         if available < required_balance {
             info!(
@@ -480,17 +495,44 @@ impl CollateralManager {
     }
 
     /// Get reserved USDC amount for pending buy orders in this market
-    async fn get_reserved_usdc_for_market(&self, _account_id: &str, _market_id: &str) -> Result<u128> {
+    async fn get_reserved_usdc_for_market(&self, account_id: &str, market_id: &str) -> Result<u128> {
         // Query database for pending buy order reservations
-        // For now, return 0 (no pending reservations)
-        Ok(0)
+        let orders = self.database.get_active_orders().await?;
+
+        let reserved_usdc = orders
+            .iter()
+            .filter(|order| {
+                order.user_account == account_id
+                    && order.market_id == market_id
+                    && matches!(order.side, crate::types::OrderSide::Buy)
+            })
+            .map(|order| {
+                // Calculate USDC needed for this buy order
+                (order.remaining_size * order.price as u128) / 100000
+            })
+            .sum();
+
+        info!("💰 Reserved USDC for {}: ${:.2}", account_id, reserved_usdc as f64 / 1_000_000.0);
+        Ok(reserved_usdc)
     }
 
     /// Get reserved token amount for pending sell orders in this market
-    async fn get_reserved_tokens_for_market(&self, _account_id: &str, _market_id: &str) -> Result<u128> {
+    async fn get_reserved_tokens_for_market(&self, account_id: &str, market_id: &str) -> Result<u128> {
         // Query database for pending sell order reservations
-        // For now, return 0 (no pending reservations)
-        Ok(0)
+        let orders = self.database.get_active_orders().await?;
+
+        let reserved_tokens = orders
+            .iter()
+            .filter(|order| {
+                order.user_account == account_id
+                    && order.market_id == market_id
+                    && matches!(order.side, crate::types::OrderSide::Sell)
+            })
+            .map(|order| order.remaining_size)
+            .sum();
+
+        info!("🪙 Reserved tokens for {}: {} tokens", account_id, reserved_tokens);
+        Ok(reserved_tokens)
     }
 
     /// Execute atomic swap: USDC transfer + token transfer (Polymarket style)
