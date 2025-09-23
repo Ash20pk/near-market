@@ -31,3 +31,5 @@ contracts/.DS_Store
 frontend-config.js
 frontend/
 .start-service.sh
+start-services.sh
+test_db_orders.js

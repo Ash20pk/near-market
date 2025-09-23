@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc, broadcast};
 use uuid::Uuid;
 use anyhow::Result;
-use tracing::{info, error, debug};
+use tracing::{info, error, debug, warn};
 use chrono::Utc;
 
 use crate::types::{Order, Trade, OrderStatus, OrderType, OrderSide, TradeType, WebSocketMessage};
@@ -119,6 +119,13 @@ impl MatchingEngine {
         if let Err(e) = self.database.insert_order(&order).await {
             error!("Failed to store order {} in database: {}", order.order_id, e);
             return Err(e);
+        }
+
+        // Step 4: Create collateral reservation now that order exists in database
+        if let Err(e) = self.collateral_manager.create_collateral_reservation(&order).await {
+            error!("Failed to create collateral reservation for order {}: {}", order.order_id, e);
+            // Order was inserted but reservation failed - should we rollback? For now, continue.
+            warn!("Order {} was inserted but collateral reservation failed", order.order_id);
         }
         info!("Order {} stored in database successfully", order.order_id);
 

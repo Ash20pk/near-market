@@ -2,10 +2,12 @@
 // Drop-in replacement for in-memory Database preserving exact same interface
 
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+use sqlx::types::BigDecimal;
 use uuid::Uuid;
 use anyhow::{anyhow, Result};
 use chrono::Utc;
 use tracing::info;
+use std::str::FromStr;
 
 use crate::types::{
     Order, Trade, SettlementStatus, CollateralBalance, CollateralReservation,
@@ -17,6 +19,16 @@ pub struct SimplePostgresDatabase {
 }
 
 impl SimplePostgresDatabase {
+    // Helper function to convert u128 to BigDecimal for NUMERIC columns
+    fn u128_to_bigdecimal(value: u128) -> BigDecimal {
+        BigDecimal::from_str(&value.to_string()).unwrap_or_else(|_| BigDecimal::from(0))
+    }
+
+    // Helper function to convert BigDecimal back to u128
+    fn bigdecimal_to_u128(value: BigDecimal) -> u128 {
+        value.to_string().parse().unwrap_or(0)
+    }
+
     pub async fn new() -> Result<Self> {
         let database_url = std::env::var("DATABASE_URL")
             .map_err(|_| anyhow!("DATABASE_URL environment variable not set"))?;
@@ -25,11 +37,11 @@ impl SimplePostgresDatabase {
 
         // Configure pool to prevent prepared statement conflicts
         let pool = PgPoolOptions::new()
-            .max_connections(10)
+            .max_connections(1)  // Use single connection to avoid prepared statement conflicts
             .min_connections(1)
             .acquire_timeout(std::time::Duration::from_secs(30))
-            .idle_timeout(std::time::Duration::from_secs(300))
-            .max_lifetime(std::time::Duration::from_secs(1800))
+            .idle_timeout(std::time::Duration::from_secs(600))
+            .max_lifetime(std::time::Duration::from_secs(3600))
             .connect(&database_url).await
             .map_err(|e| anyhow!("Failed to connect to database: {}", e))?;
 
@@ -69,9 +81,9 @@ impl SimplePostgresDatabase {
             .bind(self.order_side_to_string(&order.side))
             .bind(self.order_type_to_string(&order.order_type))
             .bind(order.price as i64)
-            .bind(order.original_size as i64) // Simplified - convert u128 to i64 for now
-            .bind(order.remaining_size as i64)
-            .bind(order.filled_size as i64)
+            .bind(Self::u128_to_bigdecimal(order.original_size))
+            .bind(Self::u128_to_bigdecimal(order.remaining_size))
+            .bind(Self::u128_to_bigdecimal(order.filled_size))
             .bind(self.order_status_to_string(&order.status))
             .bind(order.created_at)
             .bind(order.expires_at)
@@ -100,8 +112,8 @@ impl SimplePostgresDatabase {
         "#;
 
         let result = sqlx::query(query)
-            .bind(order.remaining_size as i64)
-            .bind(order.filled_size as i64)
+            .bind(Self::u128_to_bigdecimal(order.remaining_size))
+            .bind(Self::u128_to_bigdecimal(order.filled_size))
             .bind(self.order_status_to_string(&order.status))
             .bind(order.order_id)
             .execute(&self.pool)
@@ -212,13 +224,13 @@ impl SimplePostgresDatabase {
 
         let bids: Vec<PriceLevel> = bid_rows.into_iter().map(|r| PriceLevel {
             price: r.get::<i64, _>("price") as u64,
-            size: r.get::<i64, _>("total_size") as u128,
+            size: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("total_size")),
             order_count: r.get::<i64, _>("order_count") as u32,
         }).collect();
 
         let asks: Vec<PriceLevel> = ask_rows.into_iter().map(|r| PriceLevel {
             price: r.get::<i64, _>("price") as u64,
-            size: r.get::<i64, _>("total_size") as u128,
+            size: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("total_size")),
             order_count: r.get::<i64, _>("order_count") as u32,
         }).collect();
 
@@ -317,7 +329,7 @@ impl SimplePostgresDatabase {
             .bind(self.order_side_to_string(&trade.taker_side))
             .bind(trade.outcome as i16)
             .bind(trade.price as i64)
-            .bind(trade.size as i64)
+            .bind(Self::u128_to_bigdecimal(trade.size))
             .bind(self.trade_type_to_string(&trade.trade_type))
             .bind(trade.executed_at)
             .bind(self.settlement_status_to_string(&trade.settlement_status))
@@ -445,11 +457,11 @@ impl SimplePostgresDatabase {
         Ok(row.map(|r| CollateralBalance {
             account_id: r.get("account_id"),
             market_id: r.get("market_id"),
-            available_balance: r.get::<i64, _>("available_balance") as u128,
-            reserved_balance: r.get::<i64, _>("reserved_balance") as u128,
-            position_balance: r.get::<i64, _>("position_balance") as u128,
-            total_deposited: r.get::<i64, _>("total_deposited") as u128,
-            total_withdrawn: r.get::<i64, _>("total_withdrawn") as u128,
+            available_balance: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("available_balance")),
+            reserved_balance: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("reserved_balance")),
+            position_balance: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("position_balance")),
+            total_deposited: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("total_deposited")),
+            total_withdrawn: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("total_withdrawn")),
             last_updated: r.get("last_updated"),
         }))
     }
@@ -473,11 +485,11 @@ impl SimplePostgresDatabase {
         sqlx::query(query)
             .bind(&balance.account_id)
             .bind(&balance.market_id)
-            .bind(balance.available_balance as i64)
-            .bind(balance.reserved_balance as i64)
-            .bind(balance.position_balance as i64)
-            .bind(balance.total_deposited as i64)
-            .bind(balance.total_withdrawn as i64)
+            .bind(Self::u128_to_bigdecimal(balance.available_balance))
+            .bind(Self::u128_to_bigdecimal(balance.reserved_balance))
+            .bind(Self::u128_to_bigdecimal(balance.position_balance))
+            .bind(Self::u128_to_bigdecimal(balance.total_deposited))
+            .bind(Self::u128_to_bigdecimal(balance.total_withdrawn))
             .bind(balance.last_updated)
             .execute(&self.pool)
             .await?;
@@ -498,8 +510,8 @@ impl SimplePostgresDatabase {
             .bind(reservation.reservation_id)
             .bind(&reservation.account_id)
             .bind(&reservation.market_id)
-            .bind(reservation.reserved_amount as i64)
-            .bind(reservation.max_loss as i64)
+            .bind(Self::u128_to_bigdecimal(reservation.reserved_amount))
+            .bind(Self::u128_to_bigdecimal(reservation.max_loss))
             .bind(self.order_side_to_string(&reservation.side))
             .bind(reservation.price as i64)
             .bind(reservation.size as i64)
@@ -522,8 +534,8 @@ impl SimplePostgresDatabase {
             account_id: r.get("account_id"),
             market_id: r.get("market_id"),
             order_id: r.get("order_id"),
-            reserved_amount: r.get::<i64, _>("reserved_amount") as u128,
-            max_loss: r.get::<i64, _>("max_loss") as u128,
+            reserved_amount: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("reserved_amount")),
+            max_loss: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("max_loss")),
             side: self.string_to_order_side(&r.get::<String, _>("side")),
             price: r.get::<i64, _>("price") as u64,
             size: r.get::<i64, _>("size") as u128,
@@ -555,9 +567,9 @@ impl SimplePostgresDatabase {
             side: self.string_to_order_side(&r.get::<String, _>("side")),
             order_type: self.string_to_order_type(&r.get::<String, _>("order_type")),
             price: r.get::<i64, _>("price") as u64,
-            original_size: r.get::<i64, _>("original_size") as u128,
-            remaining_size: r.get::<i64, _>("remaining_size") as u128,
-            filled_size: r.get::<i64, _>("filled_size") as u128,
+            original_size: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("original_size")),
+            remaining_size: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("remaining_size")),
+            filled_size: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("filled_size")),
             status: self.string_to_order_status(&r.get::<String, _>("status")),
             created_at: r.get("created_at"),
             expires_at: r.get("expires_at"),
@@ -578,7 +590,7 @@ impl SimplePostgresDatabase {
             taker_side: self.string_to_order_side(&r.get::<String, _>("taker_side")),
             outcome: r.get::<i16, _>("outcome") as u8,
             price: r.get::<i64, _>("price") as u64,
-            size: r.get::<i64, _>("size") as u128,
+            size: Self::bigdecimal_to_u128(r.get::<BigDecimal, _>("size")),
             trade_type: self.string_to_trade_type(&r.get::<String, _>("trade_type")),
             executed_at: r.get("executed_at"),
             settlement_status: self.string_to_settlement_status(&r.get::<String, _>("settlement_status")),

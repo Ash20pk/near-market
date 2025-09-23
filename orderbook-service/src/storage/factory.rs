@@ -9,6 +9,7 @@ use super::{Database, SimplePostgresDatabase};
 use crate::types::{Order, Trade, SettlementStatus, CollateralBalance, CollateralReservation, OrderbookSnapshot, MarketPrice};
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub enum DatabaseType {
     InMemory,
     PostgreSQL,
@@ -296,6 +297,7 @@ pub async fn create_database() -> Result<Arc<dyn DatabaseTrait>> {
     // Use get_or_try_init to ensure only one database is created even under concurrent access
     let database = DATABASE_INSTANCE.get_or_try_init(|| async {
         let db_type = determine_database_type();
+        info!("📊 Database type determined: {:?}", db_type);
 
         let result: Result<Arc<dyn DatabaseTrait>> = match db_type {
             DatabaseType::PostgreSQL => {
@@ -320,7 +322,7 @@ pub async fn create_database() -> Result<Arc<dyn DatabaseTrait>> {
                 }
             }
             DatabaseType::InMemory => {
-                info!("💾 Using in-memory database");
+                warn!("💾 Using in-memory database - DATA WILL NOT PERSIST!");
                 let in_memory_db = Database::new().await?;
                 Ok(Arc::new(in_memory_db) as Arc<dyn DatabaseTrait>)
             }
@@ -360,9 +362,15 @@ pub async fn create_test_database() -> Result<Arc<dyn DatabaseTrait>> {
 
 fn determine_database_type() -> DatabaseType {
     // Check if DATABASE_URL is set for PostgreSQL
-    if std::env::var("DATABASE_URL").is_ok() {
-        DatabaseType::PostgreSQL
-    } else {
-        DatabaseType::InMemory
+    match std::env::var("DATABASE_URL") {
+        Ok(url) => {
+            info!("🔍 DATABASE_URL found: {}", url.chars().take(50).collect::<String>() + "...");
+            info!("🐘 Using PostgreSQL database");
+            DatabaseType::PostgreSQL
+        }
+        Err(_) => {
+            warn!("⚠️ DATABASE_URL not set, falling back to in-memory database");
+            DatabaseType::InMemory
+        }
     }
 }

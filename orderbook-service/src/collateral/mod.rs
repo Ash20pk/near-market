@@ -83,8 +83,8 @@ impl CollateralManager {
             return Ok(false);
         }
 
-        // Reserve the balance for this market
-        self.reserve_market_balance(&order.user_account, &order.market_id, &order.side, required_balance).await?;
+        // Don't create the reservation yet - just check if balance is sufficient
+        // The reservation will be created after the order is successfully inserted
 
         info!(
             "✅ Reserved {} for order {} in market {} (user: {})",
@@ -99,6 +99,29 @@ impl CollateralManager {
         );
 
         Ok(true)
+    }
+
+    /// Create collateral reservation after order is successfully inserted
+    pub async fn create_collateral_reservation(&self, order: &Order) -> Result<()> {
+        let required_balance = self.calculate_required_balance(order)?;
+
+        // Create the actual reservation now that the order exists
+        self.reserve_market_balance_atomic(
+            &order.user_account,
+            &order.market_id,
+            &order.side,
+            required_balance,
+            order.order_id
+        ).await?;
+
+        info!(
+            "✅ Created collateral reservation for order {} in market {} (user: {})",
+            order.order_id,
+            order.market_id,
+            order.user_account
+        );
+
+        Ok(())
     }
 
     /// Release collateral when order is cancelled or filled
