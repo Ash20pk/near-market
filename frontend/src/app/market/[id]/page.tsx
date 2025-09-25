@@ -25,6 +25,61 @@ import { OrderbookWidget } from '@/components/orderbook/OrderbookWidget';
 import { TradeHistory } from '@/components/orderbook/TradeHistory';
 import { OrderbookChart } from '@/components/orderbook/OrderbookChart';
 
+// Component to show market prediction bar with dynamic percentage
+function MarketPredictionBar({ marketId }: { marketId: string }) {
+  const { price: yesPrice } = useMarketPrice(marketId, 1);
+
+  // Calculate percentage from YES price (price is already in cents, so it's the percentage)
+  const yesPercentage = yesPrice?.mid || 50; // Default to 50% if no data
+  const noPercentage = 100 - yesPercentage;
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-green-400 font-semibold text-sm">YES</span>
+          <SimplePrice
+            marketId={marketId}
+            outcome={1}
+            className="text-green-400 font-bold text-lg"
+            showCurrency={true}
+            fallback={<span className="text-gray-400">--</span>}
+          />
+          <PriceChange marketId={marketId} outcome={1} className="text-xs" />
+        </div>
+        <div className="flex items-center gap-2">
+          <PriceChange marketId={marketId} outcome={0} className="text-xs" />
+          <SimplePrice
+            marketId={marketId}
+            outcome={0}
+            className="text-red-400 font-bold text-lg"
+            showCurrency={true}
+            fallback={<span className="text-gray-400">--</span>}
+          />
+          <span className="text-red-400 font-semibold text-sm">NO</span>
+        </div>
+      </div>
+
+      {/* Prediction Bar */}
+      <div className="relative w-full h-3 bg-red-500/20 rounded-full overflow-hidden">
+        <div
+          className="absolute left-0 top-0 h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full transition-all duration-300"
+          style={{
+            width: `${yesPercentage}%`
+          }}
+        />
+      </div>
+
+      {/* Bar Labels */}
+      <div className="flex justify-between mt-2 text-xs text-gray-400">
+        <span>0%</span>
+        <span>{yesPrice?.mid ? `${yesPrice.mid.toFixed(0)}%` : '50%'}</span>
+        <span>100%</span>
+      </div>
+    </div>
+  );
+}
+
 // Component to conditionally show price label only when there's trading data
 function PriceLabelWithData({ marketId, outcome }: { marketId: string; outcome: number }) {
   const { price } = useMarketPrice(marketId, outcome);
@@ -209,21 +264,6 @@ function MarketDetailContent() {
 
         {/* Market Header */}
         <div className="futurecast-card p-6">
-          <div className="text-center mb-6">
-            {/* Live Price Display */}
-            <div className="text-4xl sm:text-5xl font-bold text-green-400 mb-2">
-              <LivePriceDisplay
-                marketId={market.market_id}
-                outcome={1}
-                className="text-4xl sm:text-5xl font-bold text-green-400"
-                showCurrency={true}
-                fallback={<span className="text-gray-400">No Data</span>}
-              />
-            </div>
-            {/* Only show "YES probability" label when there's actual price data */}
-            <PriceLabelWithData marketId={market.market_id} outcome={1} />
-          </div>
-
           {/* Title */}
           <h1 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center leading-tight">
             {market.title}
@@ -243,18 +283,21 @@ function MarketDetailContent() {
           </div>
 
           {/* Description */}
-          <p className="text-gray-300 text-sm sm:text-base leading-relaxed text-center mb-6">
+          <p className="text-gray-300 text-sm sm:text-base leading-relaxed text-center mb-8">
             {market.description}
           </p>
 
-          {/* Key Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Market Prediction Bar */}
+          <MarketPredictionBar marketId={market.market_id} />
+
+          {/* Key Stats - Centered Layout */}
+          <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
             <div className="text-center p-4 bg-gray-800/30 rounded-xl">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Volume2 className="w-4 h-4 text-blue-400" />
                 <span className="text-sm text-gray-400">Volume</span>
               </div>
-              <div className="text-white font-bold text-lg">
+              <div className="text-white font-bold text-sm">
                 {market.total_volume ? formatCurrency(parseFloat(market.total_volume) / 1e6) : 'No trades yet'}
               </div>
             </div>

@@ -19,6 +19,7 @@
     "@near-wallet-selector/sender": "^8.10.2",
     "@types/uuid": "^10.0.0",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.23.21",
     "lucide-react": "^0.542.0",
     "near-api-js": "^4.0.4",
     "next": "15.5.2",

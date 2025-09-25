@@ -38,3 +38,4 @@ expire-all-markets.js
 create-2025-markets.js
 expire-markets.js
 test-websocket-interface.js
+register-condition-ids.js

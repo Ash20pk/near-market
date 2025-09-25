@@ -80,6 +80,11 @@ export function TradingInterface({ market, onTradeSubmitted }: TradingInterfaceP
       return;
     }
 
+    if (!nearService) {
+      setError('NEAR service not initialized. Please try again.');
+      return;
+    }
+
     if (!amount || parseFloat(amount) <= 0) {
       setError('Please enter a valid amount');
       return;
@@ -128,12 +133,11 @@ export function TradingInterface({ market, onTradeSubmitted }: TradingInterfaceP
       };
 
       if (orderType === 'Limit' && !showAdvanced) {
-        const priceInBasisPoints = Math.floor(parseFloat(limitPrice) * 100);
-        if (tradeMode === 'buy') {
-          intent.max_price = priceInBasisPoints;
-        } else {
-          intent.min_price = priceInBasisPoints;
-        }
+        // Convert cents to basis points (60¢ -> 60000)
+        const priceInBasisPoints = Math.floor(parseFloat(limitPrice) * 1000);
+        // Both buy and sell use max_price since they're both BuyShares intents
+        // Buy = buy YES shares at max price, Sell = buy NO shares at max price
+        intent.max_price = priceInBasisPoints;
       }
 
       const result = await nearService.submitIntent(intent, 'solver.testnet');
@@ -338,10 +342,7 @@ export function TradingInterface({ market, onTradeSubmitted }: TradingInterfaceP
                       mint: 'MintComplete',
                       redeem: 'RedeemWinning'
                     }[advancedTab] as keyof typeof INTENT_TYPES]
-                  : INTENT_TYPES[{
-                      buy: 'BuyShares',
-                      sell: 'SellShares'
-                    }[tradeMode] as keyof typeof INTENT_TYPES]
+                  : 'Buy Shares' // Both buy and sell are BuyShares intents
                 }
               </span>
             </div>
@@ -408,9 +409,9 @@ export function TradingInterface({ market, onTradeSubmitted }: TradingInterfaceP
         {/* Submit Button */}
         <button
           onClick={handleSubmitTrade}
-          disabled={loading || !amount || !isSignedIn}
+          disabled={loading || !amount || !isSignedIn || !nearService}
           className={`w-full py-4 rounded-lg font-semibold text-white transition-all ${
-            !isSignedIn || !amount
+            !isSignedIn || !amount || !nearService
               ? 'bg-gray-700 cursor-not-allowed'
               : loading
                 ? 'bg-gray-700 cursor-not-allowed'
@@ -419,11 +420,13 @@ export function TradingInterface({ market, onTradeSubmitted }: TradingInterfaceP
         >
           {!isSignedIn
             ? 'Connect Wallet'
-            : loading
-              ? 'Submitting...'
-              : showAdvanced
-                ? `${advancedTab.charAt(0).toUpperCase() + advancedTab.slice(1)} Shares`
-                : `${tradeMode.charAt(0).toUpperCase() + tradeMode.slice(1)} ${tradeMode === 'buy' ? 'YES' : 'NO'}`
+            : !nearService
+              ? 'Initializing...'
+              : loading
+                ? 'Submitting...'
+                : showAdvanced
+                  ? `${advancedTab.charAt(0).toUpperCase() + advancedTab.slice(1)} Shares`
+                  : `${tradeMode.charAt(0).toUpperCase() + tradeMode.slice(1)} ${tradeMode === 'buy' ? 'YES' : 'NO'}`
           }
         </button>
       </div>
