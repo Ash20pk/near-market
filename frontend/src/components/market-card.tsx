@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,67 @@ import { Calendar, Clock, TrendingUp, Users, Volume2, ArrowUp, ArrowDown } from 
 import Link from 'next/link';
 import { LivePriceDisplay, SimplePrice, PriceChange } from '@/components/orderbook/LivePriceDisplay';
 import { MiniOrderbookChart } from '@/components/orderbook/OrderbookChart';
+import { useMarketPrice } from '@/hooks/useOrderbook';
 
 interface MarketCardProps {
   market: Market;
   showTradingButtons?: boolean;
   compact?: boolean;
+}
+
+// Component for dynamic community prediction based on actual market prices
+function CommunityPredictionBar({ marketId }: { marketId: string }) {
+  const { price: yesPrice, loading } = useMarketPrice(marketId, 1);
+  const [showFallback, setShowFallback] = useState(false);
+
+  // Add delay before showing fallback values
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowFallback(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [marketId]);
+
+  // Reset fallback when market changes
+  useEffect(() => {
+    setShowFallback(false);
+  }, [marketId]);
+
+  // Calculate percentage from YES price (price is already in cents, so it's the percentage)
+  const yesPercentage = yesPrice?.mid || (showFallback ? 50 : null);
+  const noPercentage = yesPercentage ? 100 - yesPercentage : null;
+
+  return (
+    <div className="bg-gray-800/30 rounded-xl p-3 mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-gray-300 text-sm">Community Prediction</span>
+        <TrendingUp className="w-4 h-4 text-green-400" />
+      </div>
+      <div className="w-full bg-gray-700 rounded-full h-2">
+        {yesPercentage !== null ? (
+          <div 
+            className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${yesPercentage}%` }}
+          />
+        ) : (
+          <div className="bg-gray-500/30 h-2 rounded-full animate-pulse" />
+        )}
+      </div>
+      <div className="flex justify-between text-xs text-gray-400 mt-2">
+        <span>
+          {yesPercentage !== null ? `${yesPercentage.toFixed(0)}% YES` : 
+           showFallback ? '50% YES' : 
+           <span className="animate-pulse">-- YES</span>}
+        </span>
+        <span>
+          {noPercentage !== null ? `${noPercentage.toFixed(0)}% NO` : 
+           showFallback ? '50% NO' : 
+           <span className="animate-pulse">-- NO</span>}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function MarketCard({ market, showTradingButtons = false, compact = false }: MarketCardProps) {
@@ -152,6 +208,9 @@ export function MarketCard({ market, showTradingButtons = false, compact = false
           <div className="text-xs text-gray-400">Volume</div>
         </div>
       </div>
+
+      {/* Community Prediction */}
+      <CommunityPredictionBar marketId={market.market_id} />
 
       {/* Mini Depth Chart */}
       <div className="mb-6">

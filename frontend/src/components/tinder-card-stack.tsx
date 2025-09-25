@@ -15,6 +15,7 @@ import {
   Flame
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useMarketPrice } from '@/hooks/useOrderbook';
 
 interface TinderCardStackProps {
   markets: Market[];
@@ -28,6 +29,61 @@ interface SwipeData {
   y: number;
   rotation: number;
   opacity: number;
+}
+
+// Component for dynamic community prediction based on actual market prices
+function CommunityPredictionBar({ marketId }: { marketId: string }) {
+  const { price: yesPrice, loading } = useMarketPrice(marketId, 1);
+  const [showFallback, setShowFallback] = useState(false);
+
+  // Add delay before showing fallback values
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowFallback(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [marketId]);
+
+  // Reset fallback when market changes
+  useEffect(() => {
+    setShowFallback(false);
+  }, [marketId]);
+
+  // Calculate percentage from YES price (price is already in cents, so it's the percentage)
+  const yesPercentage = yesPrice?.mid || (showFallback ? 50 : null);
+  const noPercentage = yesPercentage ? 100 - yesPercentage : null;
+
+  return (
+    <div className="bg-black/30 backdrop-blur-sm rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-gray-300">Community Prediction</span>
+        <TrendingUp className="w-4 h-4 text-green-400" />
+      </div>
+      <div className="w-full bg-gray-700 rounded-full h-2">
+        {yesPercentage !== null ? (
+          <div 
+            className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${yesPercentage}%` }}
+          />
+        ) : (
+          <div className="bg-gray-500/30 h-2 rounded-full animate-pulse" />
+        )}
+      </div>
+      <div className="flex justify-between text-xs md:text-sm text-gray-400 mt-2">
+        <span>
+          {yesPercentage !== null ? `${yesPercentage.toFixed(0)}% YES` : 
+           showFallback ? '50% YES' : 
+           <span className="animate-pulse">-- YES</span>}
+        </span>
+        <span>
+          {noPercentage !== null ? `${noPercentage.toFixed(0)}% NO` : 
+           showFallback ? '50% NO' : 
+           <span className="animate-pulse">-- NO</span>}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function TinderCardStack({ 
@@ -356,23 +412,8 @@ export function TinderCardStack({
                   </div>
                 </div>
 
-                {/* Quick prediction stats */}
-                <div className="bg-black/30 backdrop-blur-sm rounded-2xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-300">Community Prediction</span>
-                    <TrendingUp className="w-4 h-4 text-green-400" />
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full"
-                      style={{ width: '67%' }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs md:text-sm text-gray-400 mt-2">
-                    <span>33% NO</span>
-                    <span>67% YES</span>
-                  </div>
-                </div>
+                {/* Dynamic Community Prediction */}
+                <CommunityPredictionBar marketId={market.market_id} />
               </div>
             </div>
           </div>
