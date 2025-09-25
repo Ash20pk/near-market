@@ -29,7 +29,12 @@ orderbook-service/.env
 
 contracts/.DS_Store
 frontend-config.js
-frontend/
 .start-service.sh
 start-services.sh
 test_db_orders.js
+frontend/ORDERBOOK_INTEGRATION.md
+frontend-integration-guide.md
+expire-all-markets.js
+create-2025-markets.js
+expire-markets.js
+test-websocket-interface.js

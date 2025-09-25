@@ -1,0 +1,853 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #111111;
+  --card-foreground: #ffffff;
+  --primary: #ff0050;
+  --primary-foreground: #ffffff;
+  --secondary: #1ed760;
+  --secondary-foreground: #000000;
+  --muted: #333333;
+  --muted-foreground: #999999;
+  --accent: #ff6b35;
+  --border: #333333;
+  --input: #222222;
+  --ring: #ff0050;
+  /* Height of the fixed bottom navigation bar */
+  --bottom-nav-height: 80px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  margin: 0; /* reset default browser margin to avoid overflow */
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* FutureCast Design System */
+.futurecast-bg {
+  background: radial-gradient(ellipse at center, #111111 0%, #000000 100%);
+  min-height: 100vh;
+}
+
+.futurecast-card {
+  background: linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 100%);
+  border: 1px solid #333;
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.futurecast-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.futurecast-card:hover {
+  transform: translateY(-4px);
+  border-color: #ff0050;
+  box-shadow: 0 20px 40px rgba(255, 0, 80, 0.2);
+}
+
+/* TikTok-style Swipe Cards */
+/* Tinder-Style Card Stack Container */
+.card-stack-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at center, #111111 0%, #000000 100%);
+  position: relative;
+  overflow: hidden;
+  /* Top, horizontal, and bottom padding accounts for fixed nav + safe area */
+  padding: 24px 20px calc(40px + var(--bottom-nav-height) + env(safe-area-inset-bottom)) 20px;
+  box-sizing: border-box;
+}
+
+.card-stack {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 550px;
+  perspective: 1000px;
+  margin: 0 auto;
+}
+
+/* Individual Prediction Card */
+.prediction-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 100%);
+  border-radius: 24px;
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 10px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  cursor: grab;
+  border: 1px solid #333;
+  backdrop-filter: blur(20px);
+  touch-action: none;
+  overflow: hidden;
+  transform-origin: center center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.prediction-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  z-index: 1;
+}
+
+.prediction-card:active {
+  cursor: grabbing;
+}
+
+
+/* Swipe States */
+.prediction-card.swiping {
+  transition: none;
+  z-index: 10;
+}
+
+.prediction-card.swipe-left {
+  transform: translateX(-150%) rotate(-30deg);
+  opacity: 0;
+  transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+}
+
+.prediction-card.swipe-right {
+  transform: translateX(150%) rotate(30deg);
+  opacity: 0;
+  transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+}
+
+.prediction-card.swipe-up {
+  transform: translateY(-100%) scale(0.8);
+  opacity: 0;
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+/* Tinder-Style Swipe Indicators */
+.swipe-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 72px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
+  z-index: 10;
+}
+
+.swipe-indicator.yes {
+  right: 20px;
+  color: #00ff88;
+  border: 4px solid #00ff88;
+  padding: 10px 20px;
+  border-radius: 15px;
+  background: rgba(0, 255, 136, 0.1);
+  transform: translateY(-50%) rotate(20deg);
+}
+
+.swipe-indicator.no {
+  left: 20px;
+  color: #ff0050;
+  border: 4px solid #ff0050;
+  padding: 10px 20px;
+  border-radius: 15px;
+  background: rgba(255, 0, 80, 0.1);
+  transform: translateY(-50%) rotate(-20deg);
+}
+
+.swipe-indicator.skip {
+  left: 50%;
+  top: 30%;
+  color: #ffa500;
+  border: 4px solid #ffa500;
+  padding: 10px 20px;
+  border-radius: 15px;
+  background: rgba(255, 165, 0, 0.1);
+  transform: translateX(-50%) translateY(-50%);
+  font-size: 48px;
+}
+
+/* Tinder-Style Action Buttons */
+.tinder-actions {
+  position: absolute;
+  /* Lift actions above the bottom nav and iOS home bar */
+  bottom: calc(20px + var(--bottom-nav-height) + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tinder-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.tinder-button:hover {
+  transform: scale(1.1);
+}
+
+.tinder-button:active {
+  transform: scale(0.95);
+}
+
+.tinder-button.reject {
+  background: linear-gradient(135deg, #ff0050 0%, #ff4081 100%);
+  color: white;
+}
+
+.tinder-button.reject:hover {
+  box-shadow: 0 12px 35px rgba(255, 0, 80, 0.4);
+}
+
+.tinder-button.skip {
+  background: rgba(255, 165, 0, 0.2);
+  border: 2px solid #ffa500;
+  color: #ffa500;
+}
+
+.tinder-button.skip:hover {
+  background: rgba(255, 165, 0, 0.3);
+  box-shadow: 0 12px 35px rgba(255, 165, 0, 0.3);
+}
+
+.tinder-button.like {
+  background: linear-gradient(135deg, #00ff88 0%, #1ed760 100%);
+  color: white;
+}
+
+.tinder-button.like:hover {
+  box-shadow: 0 12px 35px rgba(0, 255, 136, 0.4);
+}
+
+.tinder-button.super {
+  background: linear-gradient(135deg, #1e90ff 0%, #00bfff 100%);
+  color: white;
+  width: 70px;
+  height: 70px;
+}
+
+.tinder-button.super:hover {
+  box-shadow: 0 15px 40px rgba(30, 144, 255, 0.5);
+}
+
+/* Particle Effects */
+.swipe-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 15;
+}
+
+.particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.particle.like {
+  background: #00ff88;
+  animation: particleExplodeGreen 0.8s ease-out forwards;
+}
+
+.particle.nope {
+  background: #ff0050;
+  animation: particleExplodeRed 0.8s ease-out forwards;
+}
+
+@keyframes particleExplodeGreen {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--random-x, 100px), var(--random-y, -100px)) scale(0.5);
+  }
+}
+
+@keyframes particleExplodeRed {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--random-x, -100px), var(--random-y, -100px)) scale(0.5);
+  }
+}
+
+/* Enhanced Mobile Responsiveness */
+@media (max-width: 480px) {
+  .card-stack-container {
+    /* Less top padding, maintain bottom safe area; fix height to viewport */
+    padding: 4px 15px calc(16px + var(--bottom-nav-height) + env(safe-area-inset-bottom)) 15px;
+    height: 100dvh;
+    overflow: hidden;
+    justify-content: flex-start; /* push content up */
+    box-sizing: border-box; /* include padding in height to avoid overflow */
+  }
+  
+  .card-stack {
+    max-width: 350px;
+    height: 600px;
+    /* Slight left nudge to visually center the card on narrow devices */
+    transform: translateX(-10px);
+  }
+  
+  /* Make content fit within the reduced card height */
+  .prediction-content {
+    padding: 16px;
+  }
+  
+  /* Clamp title and description lines to prevent overflow */
+  .prediction-content h1 {
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 8px; /* tighter spacing */
+    font-size: 1.2rem; /* slightly smaller */
+  }
+  .prediction-content p {
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 12px; /* tighter spacing */
+    font-size: 0.9rem;
+  }
+  
+  /* Tighten the two stat boxes and the community section */
+  .prediction-content .grid {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .prediction-content .grid > div {
+    padding: 10px;
+    border-radius: 14px;
+  }
+  .prediction-content .bg-black\/30 { /* escape slash for CSS selector */
+    padding: 10px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Slightly shrink icons within the card to save space */
+  .prediction-content svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .tinder-actions {
+    bottom: calc(16px + var(--bottom-nav-height) + env(safe-area-inset-bottom));
+    gap: 15px;
+  }
+  
+  .tinder-button {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .tinder-button.super {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .swipe-indicator {
+    font-size: 48px;
+  }
+  
+  .swipe-indicator.yes {
+    right: 15px;
+    padding: 8px 16px;
+  }
+  
+  .swipe-indicator.no {
+    left: 15px;
+    padding: 8px 16px;
+  }
+}
+
+/* Smooth card transitions for better UX */
+.prediction-card.card-enter {
+  transform: translateY(100px) scale(0.8);
+  opacity: 0;
+  animation: cardEnter 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes cardEnter {
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Improved overlay gradients */
+.prediction-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.1) 0%,
+    rgba(0, 0, 0, 0.3) 40%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
+
+.prediction-card-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.prediction-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.1) 30%,
+    rgba(0, 0, 0, 0.1) 70%,
+    rgba(0, 0, 0, 0.8) 100%
+  );
+  z-index: 2;
+}
+
+.prediction-content {
+  position: relative;
+  z-index: 3;
+  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Swipe Actions */
+.swipe-yes {
+  background: linear-gradient(135deg, #1ed760 0%, #1db954 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 16px 32px;
+  box-shadow: 0 8px 25px rgba(30, 215, 96, 0.4);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-yes:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 35px rgba(30, 215, 96, 0.6);
+}
+
+.swipe-no {
+  background: linear-gradient(135deg, #ff0050 0%, #e6004c 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 16px 32px;
+  box-shadow: 0 8px 25px rgba(255, 0, 80, 0.4);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-no:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 35px rgba(255, 0, 80, 0.6);
+}
+
+.swipe-skip {
+  background: transparent;
+  color: #999;
+  border: 2px solid #333;
+  border-radius: 50px;
+  font-weight: 600;
+  font-size: 16px;
+  padding: 12px 24px;
+  transition: all 0.2s ease;
+}
+
+.swipe-skip:hover {
+  border-color: #666;
+  color: #ccc;
+  transform: scale(1.05);
+}
+
+/* Gamification Elements */
+.streak-counter {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+}
+
+.level-badge {
+  background: linear-gradient(135deg, #9c27b0 0%, #673ab7 100%);
+  color: white;
+  border-radius: 15px;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prediction-score {
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #1ed760 0%, #00d9ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: var(--font-mono);
+}
+
+/* Social Elements */
+.social-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #999;
+  font-size: 14px;
+}
+
+.social-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s ease;
+}
+
+.social-stat:hover {
+  color: #fff;
+}
+
+/* Progress Indicators */
+.confidence-meter {
+  width: 100%;
+  height: 8px;
+  background: #333;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.confidence-yes {
+  background: linear-gradient(90deg, #1ed760 0%, #00ff88 100%);
+}
+
+.confidence-no {
+  background: linear-gradient(90deg, #ff0050 0%, #ff4081 100%);
+}
+
+/* Micro-interactions */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 0, 80, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(255, 0, 80, 0.6); }
+}
+
+.pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Story Format */
+.story-title {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 12px;
+  color: white;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.story-description {
+  font-size: 16px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 20px;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+}
+
+.story-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 20px;
+}
+
+/* Action Buttons Layout (TikTok-style) */
+.action-sidebar {
+  position: absolute;
+  right: 12px;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 4;
+}
+
+.action-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.action-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.action-button.active {
+  background: #ff0050;
+  border-color: #ff0050;
+}
+
+/* Bottom Actions */
+.bottom-actions {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(20px);
+}
+
+.prediction-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .prediction-card {
+    height: 100%;
+    border-radius: 20px;
+    margin: 0 12px 0 12px; /* remove extra top inset to move card up */
+  }
+  
+  .story-title {
+    font-size: 20px;
+  }
+  
+  .story-description {
+    font-size: 14px;
+  }
+  
+  .bottom-actions {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Loading States */
+.skeleton {
+  background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Haptic Feedback Simulation */
+.haptic-light {
+  transition: transform 0.1s ease;
+}
+
+.haptic-light:active {
+  transform: scale(0.95);
+}
+
+.haptic-medium {
+  transition: transform 0.1s ease;
+}
+
+.haptic-medium:active {
+  transform: scale(0.9);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Utility to add safe bottom padding across views that use a fixed bottom nav */
+.with-bottom-nav-safe-area {
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+}
+
+/* Utility to ensure the fixed bottom nav has space for iOS home indicator */
+.bottom-nav-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* NEAR Wallet Selector Modal Styles */
+#near-wallet-selector-modal {
+  z-index: 9999 !important;
+}
+
+/* Hide any unwanted wallet selector UI elements that appear outside the modal */
+.near-wallet-selector-modal-overlay {
+  z-index: 9999 !important;
+}
+
+/* Custom wallet selector modal styling to match our theme */
+.near-wallet-selector-modal-body {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  color: var(--foreground) !important;
+}
+
+.near-wallet-selector-modal-body h3,
+.near-wallet-selector-modal-body h4 {
+  color: var(--foreground) !important;
+}
+
+/* Hide persistent wallet UI elements that may appear at page bottom */
+.near-wallet-selector-status,
+.near-wallet-selector-account-info {
+  display: none !important;
+}

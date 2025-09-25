@@ -241,6 +241,20 @@ async fn websocket_connection(socket: WebSocket, state: AppState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let mut broadcast_receiver = state.ws_broadcaster.subscribe();
 
+    // Send welcome message immediately to confirm connection
+    let welcome_message = serde_json::json!({
+        "type": "connection_established",
+        "message": "WebSocket connection successful",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    });
+
+    if let Err(e) = ws_sender.send(axum::extract::ws::Message::Text(welcome_message.to_string())).await {
+        error!("Failed to send welcome message: {}", e);
+        return;
+    }
+
+    info!("Sent WebSocket welcome message");
+
     // Handle incoming WebSocket messages from client (if any)
     let client_task = tokio::spawn(async move {
         while let Some(msg) = ws_receiver.next().await {
@@ -249,33 +263,77 @@ async fn websocket_connection(socket: WebSocket, state: AppState) {
                     info!("Received WebSocket message from client: {}", text);
                     // Could handle client commands here (subscribe to specific markets, etc.)
                 }
-                Ok(axum::extract::ws::Message::Close(_)) => {
-                    info!("WebSocket connection closed by client");
+                Ok(axum::extract::ws::Message::Ping(data)) => {
+                    info!("Received WebSocket ping from client");
+                    // Axum automatically handles pong responses, but we log for debugging
+                }
+                Ok(axum::extract::ws::Message::Pong(_)) => {
+                    info!("Received WebSocket pong from client");
+                }
+                Ok(axum::extract::ws::Message::Close(frame)) => {
+                    info!("WebSocket connection closed by client: {:?}", frame);
                     break;
+                }
+                Ok(axum::extract::ws::Message::Binary(_)) => {
+                    info!("Received binary WebSocket message from client (ignoring)");
                 }
                 Err(e) => {
                     error!("WebSocket error: {}", e);
                     break;
                 }
-                _ => {}
             }
         }
+        info!("WebSocket client message handler exiting");
     });
 
     // Handle broadcasting messages to client
     let broadcast_task = tokio::spawn(async move {
-        while let Ok(message) = broadcast_receiver.recv().await {
-            let json_message = match serde_json::to_string(&message) {
-                Ok(json) => json,
-                Err(e) => {
-                    error!("Failed to serialize WebSocket message: {}", e);
-                    continue;
-                }
-            };
+        // Set up periodic ping to keep connection alive
+        let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        let mut last_activity = tokio::time::Instant::now();
 
-            if let Err(e) = ws_sender.send(axum::extract::ws::Message::Text(json_message)).await {
-                error!("Failed to send WebSocket message: {}", e);
-                break;
+        loop {
+            tokio::select! {
+                // Handle broadcast messages
+                msg_result = broadcast_receiver.recv() => {
+                    match msg_result {
+                        Ok(message) => {
+                            let json_message = match serde_json::to_string(&message) {
+                                Ok(json) => json,
+                                Err(e) => {
+                                    error!("Failed to serialize WebSocket message: {}", e);
+                                    continue;
+                                }
+                            };
+
+                            if let Err(e) = ws_sender.send(axum::extract::ws::Message::Text(json_message)).await {
+                                error!("Failed to send WebSocket message: {}", e);
+                                break;
+                            }
+                            last_activity = tokio::time::Instant::now();
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                            info!("WebSocket client lagged, skipped {} messages", skipped);
+                            continue;
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            info!("Broadcast channel closed, ending WebSocket connection");
+                            break;
+                        }
+                    }
+                }
+                // Send periodic ping
+                _ = ping_interval.tick() => {
+                    if let Err(e) = ws_sender.send(axum::extract::ws::Message::Ping(vec![])).await {
+                        error!("Failed to send WebSocket ping: {}", e);
+                        break;
+                    }
+                }
+                // Timeout if no activity for too long (2 minutes)
+                _ = tokio::time::sleep_until(last_activity + std::time::Duration::from_secs(120)) => {
+                    info!("WebSocket connection timed out due to inactivity");
+                    break;
+                }
             }
         }
     });
