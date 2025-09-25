@@ -1,5 +1,12 @@
 'use client';
 
+// Extend Window interface to include our custom property
+declare global {
+  interface Window {
+    nearInitialized?: boolean;
+  }
+}
+
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 // Import wallet selector modal styles
 import '@near-wallet-selector/modal-ui/styles.css';
@@ -41,6 +48,7 @@ interface WalletContextType {
   accountId: string | null;
   balance: string;
   loading: boolean;
+  nearService: typeof nearService | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -60,6 +68,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [balance, setBalance] = useState('0');
   const [loading, setLoading] = useState(true);
+  const [nearServiceReady, setNearServiceReady] = useState(false);
   const network: 'testnet' | 'mainnet' = (process.env.NEXT_PUBLIC_NEAR_NETWORK as 'testnet' | 'mainnet') || 'testnet';
   const contractId = process.env.NEXT_PUBLIC_VERIFIER_CONTRACT || 'verifier.ashpk20.testnet';
 
@@ -70,8 +79,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const initializeWallet = async () => {
     console.log('[WalletProvider] 🚀 Initializing NEAR Wallet Selector...');
     try {
-      // Initialize NearService for view-only contract access across the app
-      await nearService.initialize();
+      // Initialize NearService only once
+      if (!window.nearInitialized) {
+        console.log('[WalletProvider] ⏳ Initializing NEAR service...');
+        await nearService.initialize();
+        window.nearInitialized = true;
+        setNearServiceReady(true);
+        console.log('[WalletProvider] ✅ NEAR service initialized');
+      } else {
+        setNearServiceReady(true);
+        console.log('[WalletProvider] ℹ️ NEAR service already initialized');
+      }
 
       const { selector, modal } = await initSelector(network, contractId);
 
@@ -128,6 +146,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     accountId,
     balance,
     loading,
+    nearService: nearServiceReady ? nearService : null,
     signIn,
     signOut
   };
@@ -160,22 +179,18 @@ export function WalletConnector() {
 
   return (
     <div className="flex items-center gap-3">
-      <div className="hidden md:flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-2">
-        <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+      <div className="hidden md:flex items-center gap-3 bg-gray-800/50 rounded-lg px-4 py-2">
+        <div className="w-8 h-8 bg-indigo-600/50 rounded-full flex items-center justify-center">
           <User className="w-4 h-4 text-white" />
         </div>
-        <div className="text-right">
-          <div className="text-sm font-medium text-white">
+        <div className="text-right text-gray-200">
+          <div className="text-sm font-medium">
             {truncateAddress(accountId || '', 6)}
-          </div>
-          <div className="text-xs text-gray-400">
-            {formatCurrency(balance, 'NEAR', 2)}
           </div>
         </div>
       </div>
       
       <div className="flex items-center gap-2">
-        <div className="status-live">Connected</div>
         <button
           onClick={signOut}
           className="polymarket-button-secondary px-3 py-2 text-sm flex items-center gap-2"

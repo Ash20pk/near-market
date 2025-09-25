@@ -23,12 +23,13 @@ export function useOrderbook(marketId?: string, outcome?: number) {
   const [orderbook, setOrderbook] = useState<OrderbookSnapshot | null>(null);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [price, setPrice] = useState<PriceData | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Use the global shared orderbook service instance instead of creating new ones
   const orderbookServiceRef = useRef(orderbookService);
 
   // Use global WebSocket connection (persistent across page changes)
-  const { isConnected, error } = useGlobalWebSocket({
+  const { isConnected, error: wsError } = useGlobalWebSocket({
     marketId,
     outcome,
     onOrderbookUpdate: (message) => {
@@ -77,11 +78,11 @@ export function useOrderbook(marketId?: string, outcome?: number) {
       if (priceData.status === 'rejected' && orderbookData.status === 'rejected' &&
           !priceData.reason?.message?.includes('HTTP 404') &&
           !orderbookData.reason?.message?.includes('HTTP 404')) {
-        setError('Failed to fetch market data');
+        setFetchError('Failed to fetch market data');
       }
     } catch (error) {
       console.error('Failed to fetch market data:', error);
-      setError('Failed to fetch market data');
+      setFetchError('Failed to fetch market data');
     }
   }, [marketId, outcome]);
 
@@ -100,7 +101,7 @@ export function useOrderbook(marketId?: string, outcome?: number) {
   return {
     // Connection status
     isConnected,
-    error,
+    error: fetchError || wsError,
 
     // Market data
     orderbook,
@@ -178,15 +179,20 @@ export function useMarketPrice(marketId?: string, outcome?: number, pollInterval
       const priceData = await orderbookServiceRef.current.getMarketPrice(marketId, outcome);
       if (priceData) {
         setPrice(priceData);
+      } else {
+        // Clear price if no data is returned
+        setPrice(null);
       }
     } catch (error) {
       // Don't treat 404 as an error - market just doesn't exist in orderbook yet
       if (error instanceof Error && error.message.includes('HTTP 404')) {
         // Silently fail for 404 - this allows fallback components to work
         console.log(`Market ${marketId} not found in orderbook - using fallback`);
+        setPrice(null); // Ensure price is cleared for markets without data
       } else {
         console.error('Failed to fetch market price:', error);
         setError('Failed to fetch price');
+        setPrice(null);
       }
     } finally {
       setLoading(false);
@@ -195,13 +201,24 @@ export function useMarketPrice(marketId?: string, outcome?: number, pollInterval
 
   useEffect(() => {
     if (marketId && outcome !== undefined) {
+      // Reset state when market/outcome changes
+      setPrice(null);
+      setError(null);
+      setLoading(false);
+      
+      // Fetch initial data
       fetchPrice();
 
       // Set up polling interval
       const interval = setInterval(fetchPrice, pollInterval);
       return () => clearInterval(interval);
+    } else {
+      // Clear state when no market is selected
+      setPrice(null);
+      setError(null);
+      setLoading(false);
     }
-  }, [marketId, outcome, pollInterval, fetchPrice]);
+  }, [marketId, outcome, pollInterval]); // Remove fetchPrice dependency to avoid stale closures
 
   return {
     price,

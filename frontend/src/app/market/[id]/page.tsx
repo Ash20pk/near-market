@@ -27,11 +27,26 @@ import { OrderbookChart } from '@/components/orderbook/OrderbookChart';
 
 // Component to show market prediction bar with dynamic percentage
 function MarketPredictionBar({ marketId }: { marketId: string }) {
-  const { price: yesPrice } = useMarketPrice(marketId, 1);
+  const { price: yesPrice, loading } = useMarketPrice(marketId, 1);
+  const [showFallback, setShowFallback] = useState(false);
+
+  // Add delay before showing fallback values
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowFallback(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [marketId]);
+
+  // Reset fallback when market changes
+  useEffect(() => {
+    setShowFallback(false);
+  }, [marketId]);
 
   // Calculate percentage from YES price (price is already in cents, so it's the percentage)
-  const yesPercentage = yesPrice?.mid || 50; // Default to 50% if no data
-  const noPercentage = 100 - yesPercentage;
+  const yesPercentage = yesPrice?.mid || (showFallback ? 50 : null); // Only show default after delay
+  const noPercentage = yesPercentage ? 100 - yesPercentage : null;
 
   return (
     <div className="mb-8">
@@ -62,18 +77,26 @@ function MarketPredictionBar({ marketId }: { marketId: string }) {
 
       {/* Prediction Bar */}
       <div className="relative w-full h-3 bg-red-500/20 rounded-full overflow-hidden">
-        <div
-          className="absolute left-0 top-0 h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full transition-all duration-300"
-          style={{
-            width: `${yesPercentage}%`
-          }}
-        />
+        {yesPercentage !== null ? (
+          <div
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full transition-all duration-300"
+            style={{
+              width: `${yesPercentage}%`
+            }}
+          />
+        ) : (
+          <div className="absolute left-0 top-0 h-full bg-gray-500/30 rounded-full animate-pulse" />
+        )}
       </div>
 
       {/* Bar Labels */}
       <div className="flex justify-between mt-2 text-xs text-gray-400">
         <span>0%</span>
-        <span>{yesPrice?.mid ? `${yesPrice.mid.toFixed(0)}%` : '50%'}</span>
+        <span>
+          {yesPrice?.mid ? `${yesPrice.mid.toFixed(0)}%` : 
+           showFallback ? '50%' : 
+           <span className="animate-pulse">--</span>}
+        </span>
         <span>100%</span>
       </div>
     </div>
@@ -100,9 +123,41 @@ function PriceLabelWithData({ marketId, outcome }: { marketId: string; outcome: 
 // Component to show market activity or "no data" message
 function MarketActivitySection({ marketId }: { marketId: string }) {
   const { price, loading } = useMarketPrice(marketId, 1);
+  const [initialLoadDelay, setInitialLoadDelay] = useState(true);
 
-  // If we've finished loading and there's no price data, show "no data" message
-  const hasNoData = !loading && !price;
+  // Add a delay before showing "no data" to allow for proper data loading on navigation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialLoadDelay(false);
+    }, 2000); // Wait 2 seconds before allowing "no data" state
+
+    return () => clearTimeout(timer);
+  }, [marketId]); // Reset delay when market changes
+
+  // Reset delay when market changes
+  useEffect(() => {
+    setInitialLoadDelay(true);
+  }, [marketId]);
+
+  // Show loading state during initial delay or when actually loading
+  if (loading || initialLoadDelay) {
+    return (
+      <div className="futurecast-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Market Activity</h2>
+        </div>
+        <div className="text-center py-12">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-600 rounded w-48 mb-4 mx-auto"></div>
+            <div className="h-4 bg-gray-600 rounded w-32 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Only show "no data" if we've finished the delay and there's still no price data
+  const hasNoData = !loading && !initialLoadDelay && !price;
 
   if (hasNoData) {
     return (
